@@ -27,6 +27,7 @@ TODO
 import bpy
 import mathutils
 
+import shutil
 import os
 import os.path
 import math
@@ -207,7 +208,8 @@ TEMPLATE_LIGHT_POINT = """\
         "type"	     : "point",
         "position"   : %(position)s,
         "color"      : %(color)d,
-        "intensity"	 : %(intensity).3f
+        "intensity"	 : %(intensity).3f,
+        "distance"   : %(distance).3f
     }"""
 
 TEMPLATE_VEC4 = '[ %f, %f, %f, %f ]'
@@ -1190,6 +1192,14 @@ def generate_textures_scene(data):
 
     # TODO: extract just textures actually used by some objects in the scene
 
+    rel_dest_dir = (os.path.basename(fpath).split(".")[0] + "\\").replace("\\","\\\\")
+    abs_dest_dir = fpath.split(".")[0] + "\\"
+
+    try:
+        os.makedirs(abs_dest_dir)
+    except OSError:
+        pass
+
     for texture in bpy.data.textures:
 
         if texture.type == 'IMAGE' and texture.image:
@@ -1199,6 +1209,8 @@ def generate_textures_scene(data):
             texture_id = img.name
             texture_file = extract_texture_filename(img)
             
+            shutil.copy(img.filepath,abs_dest_dir + texture_file)
+
             extras = ""
             if texture.repeat_x != 1 or texture.repeat_y != 1:
                 extras = ',\n        "repeat": [%f, %f]' % (texture.repeat_x, texture.repeat_y)
@@ -1208,7 +1220,7 @@ def generate_textures_scene(data):
 
             texture_string = TEMPLATE_TEXTURE % {
             "texture_id"   : generate_string(texture_id),
-            "texture_file" : generate_string(texture_file),
+            "texture_file" : generate_string(rel_dest_dir + texture_file),
             "extras"       : extras
             }
             chunks.append(texture_string)
@@ -1399,7 +1411,7 @@ def generate_cameras(data):
                     "aspect"    : 1.333,
                     "near"      : camera.clip_start,
                     "far"       : camera.clip_end,
-                    "position"  : generate_vec3([cameraobj.location[0], -cameraobj.location[1], cameraobj.location[2]]),
+                    "position"  : generate_vec3([cameraobj.location[0], cameraobj.location[2], cameraobj.location[1]]),
                     "target"    : generate_vec3([0, 0, 0])
                     }
 
@@ -1417,32 +1429,51 @@ def generate_lights(data):
 
     if data["use_lights"]:
 
-        lights = data.get("lights", [])
+        #lights = data.get("lights", [])
+        lights = bpy.data.objects
+        lights = [ob for ob in lights if (ob.type == 'LAMP' and ob.select)]
+
+        chunks = []
+
         if not lights:
             lights.append(DEFAULTS["light"])
 
-        chunks = []
-        for light in lights:
+            for light in lights:
+                if light["type"] == "directional":
+                    light_string = TEMPLATE_LIGHT_DIRECTIONAL % {
+                    "light_id"      : generate_string(light["name"]),
+                    "direction"     : generate_vec3(light["direction"]),
+                    #"color"         : generate_hex(rgb2int(light["color"])),
+                    "color"         : rgb2int(light["color"]),
+                    "intensity"     : light["intensity"],
+                    }
 
-            if light["type"] == "directional":
-                light_string = TEMPLATE_LIGHT_DIRECTIONAL % {
-                "light_id"      : generate_string(light["name"]),
-                "direction"     : generate_vec3(light["direction"]),
-                #"color"         : generate_hex(rgb2int(light["color"])),
-                "color"         : rgb2int(light["color"]),
-                "intensity"     : light["intensity"]
-                }
+                elif light["type"] == "point":
+                    light_string = TEMPLATE_LIGHT_POINT % {
+                    "light_id"      : generate_string(light["name"]),
+                    "position"      : generate_vec3(light["position"]),
+                    #"color"         : generate_hex(rgb2int(light["color"])),
+                    "color"         : rgb2int(light["color"]),
+                    "intensity"     : light["intensity"],
+                    "distance"      : 30.0
+                    }
 
-            elif light["type"] == "point":
-                light_string = TEMPLATE_LIGHT_POINT % {
-                "light_id"      : generate_string(light["name"]),
-                "position"      : generate_vec3(light["position"]),
-                #"color"         : generate_hex(rgb2int(light["color"])),
-                "color"         : rgb2int(light["color"]),
-                "intensity"     : light["intensity"]
-                }
+                chunks.append(light_string)
+        else:
+            for lightobj in lights:
+                light = bpy.data.lamps[lightobj.name]
 
-            chunks.append(light_string)
+                if light.id_data.type == "POINT":
+                    light_string = TEMPLATE_LIGHT_POINT % {
+                        "light_id"  : generate_string(light.name),
+                        "position"  : generate_vec3([lightobj.location[0],lightobj.location[1],lightobj.location[2]]),
+                        "color"     : rgb2int([light.color[0],light.color[1],light.color[2]]),
+                        "intensity" : light.energy,
+                        "distance"  : light.distance
+                    }
+
+                chunks.append(light_string)
+
 
         return ",\n\n".join(chunks)
         
@@ -1540,6 +1571,8 @@ def generate_ascii_scene(data):
     return text
 
 def export_scene(scene, filepath, flipyz, option_colors, option_lights, option_cameras, option_embed_meshes, embeds,option_url_base_type):
+    global fpath
+    fpath = filepath
 
     source_file = os.path.basename(bpy.data.filepath)
 
@@ -1671,6 +1704,4 @@ def save(operator, context, filepath = "",
                     option_flip_yz,
                     option_scale,
                     True)
-
-
     return {'FINISHED'}
