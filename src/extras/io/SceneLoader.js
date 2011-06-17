@@ -593,7 +593,9 @@ THREE.SceneLoader.prototype = {
 					if ( tt.wrap ) {
 
 						if (tt.wrap == "repeat")
+						{
 							texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+						}
 
 					}
 
