@@ -208,7 +208,8 @@ TEMPLATE_LIGHT_POINT = """\
         "type"	     : "point",
         "position"   : %(position)s,
         "color"      : %(color)d,
-        "intensity"	 : %(intensity).3f
+        "intensity"	 : %(intensity).3f,
+        "distance"   : %(distance).3f
     }"""
 
 TEMPLATE_VEC4 = '[ %f, %f, %f, %f ]'
@@ -1410,7 +1411,7 @@ def generate_cameras(data):
                     "aspect"    : 1.333,
                     "near"      : camera.clip_start,
                     "far"       : camera.clip_end,
-                    "position"  : generate_vec3([cameraobj.location[0], -cameraobj.location[1], cameraobj.location[2]]),
+                    "position"  : generate_vec3([cameraobj.location[0], cameraobj.location[2], cameraobj.location[1]]),
                     "target"    : generate_vec3([0, 0, 0])
                     }
 
@@ -1428,32 +1429,51 @@ def generate_lights(data):
 
     if data["use_lights"]:
 
-        lights = data.get("lights", [])
+        #lights = data.get("lights", [])
+        lights = bpy.data.objects
+        lights = [ob for ob in lights if (ob.type == 'LAMP' and ob.select)]
+
+        chunks = []
+
         if not lights:
             lights.append(DEFAULTS["light"])
 
-        chunks = []
-        for light in lights:
+            for light in lights:
+                if light["type"] == "directional":
+                    light_string = TEMPLATE_LIGHT_DIRECTIONAL % {
+                    "light_id"      : generate_string(light["name"]),
+                    "direction"     : generate_vec3(light["direction"]),
+                    #"color"         : generate_hex(rgb2int(light["color"])),
+                    "color"         : rgb2int(light["color"]),
+                    "intensity"     : light["intensity"],
+                    }
 
-            if light["type"] == "directional":
-                light_string = TEMPLATE_LIGHT_DIRECTIONAL % {
-                "light_id"      : generate_string(light["name"]),
-                "direction"     : generate_vec3(light["direction"]),
-                #"color"         : generate_hex(rgb2int(light["color"])),
-                "color"         : rgb2int(light["color"]),
-                "intensity"     : light["intensity"]
-                }
+                elif light["type"] == "point":
+                    light_string = TEMPLATE_LIGHT_POINT % {
+                    "light_id"      : generate_string(light["name"]),
+                    "position"      : generate_vec3(light["position"]),
+                    #"color"         : generate_hex(rgb2int(light["color"])),
+                    "color"         : rgb2int(light["color"]),
+                    "intensity"     : light["intensity"],
+                    "distance"      : 30.0
+                    }
 
-            elif light["type"] == "point":
-                light_string = TEMPLATE_LIGHT_POINT % {
-                "light_id"      : generate_string(light["name"]),
-                "position"      : generate_vec3(light["position"]),
-                #"color"         : generate_hex(rgb2int(light["color"])),
-                "color"         : rgb2int(light["color"]),
-                "intensity"     : light["intensity"]
-                }
+                chunks.append(light_string)
+        else:
+            for lightobj in lights:
+                light = bpy.data.lamps[lightobj.name]
 
-            chunks.append(light_string)
+                if light.id_data.type == "POINT":
+                    light_string = TEMPLATE_LIGHT_POINT % {
+                        "light_id"  : generate_string(light.name),
+                        "position"  : generate_vec3([lightobj.location[0],lightobj.location[1],lightobj.location[2]]),
+                        "color"     : rgb2int([light.color[0],light.color[1],light.color[2]]),
+                        "intensity" : light.energy,
+                        "distance"  : light.distance
+                    }
+
+                chunks.append(light_string)
+
 
         return ",\n\n".join(chunks)
         
@@ -1684,5 +1704,4 @@ def save(operator, context, filepath = "",
                     option_flip_yz,
                     option_scale,
                     True)
-
     return {'FINISHED'}
