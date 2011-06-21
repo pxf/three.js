@@ -573,7 +573,7 @@ THREE.WebGLRenderer = function ( parameters ) {
 
 	};
 
-	function initMeshBuffers ( geometryGroup, object ) {
+	function initMeshBuffers ( geometryGroup, object, scene ) {
 
 		var f, fl, fi, face,
 		m, ml, size,
@@ -610,7 +610,12 @@ THREE.WebGLRenderer = function ( parameters ) {
 
 		}
 
-		materials = unrollGroupMaterials( geometryGroup, object );
+		if (scene && scene.overrideMaterial)
+		{
+			materials = [scene.overrideMaterial];
+		} else {
+			materials = unrollGroupMaterials( geometryGroup, object );
+		}
 		
 		// this will not work if materials would change in run-time
 		// it should be refreshed every frame
@@ -2337,9 +2342,9 @@ THREE.WebGLRenderer = function ( parameters ) {
 		}
 
 		if ( material.attributes ) {
-			
+
 			for ( a in material.attributes ) {
-	
+				
 				if( attributes[ a ] !== undefined && attributes[ a ] >= 0 ) _gl.enableVertexAttribArray( attributes[ a ] );
 	
 			}
@@ -3207,7 +3212,7 @@ THREE.WebGLRenderer = function ( parameters ) {
 			for ( o = 0; o < ol; o ++ ) {
 
 				webglObject = scene.__webglObjects[ o ];
-
+				
 				if ( webglObject.render ) {
 
 					object = webglObject.object;
@@ -3224,6 +3229,7 @@ THREE.WebGLRenderer = function ( parameters ) {
 			for ( o = 0; o < oil; o++ ) {
 
 				webglObject = scene.__webglObjectsImmediate[ o ];
+				
 				object = webglObject.object;
 
 				if ( object.visible ) {
@@ -3978,7 +3984,7 @@ THREE.WebGLRenderer = function ( parameters ) {
 				if ( ! geometryGroup.__webglVertexBuffer ) {
 
 					createMeshBuffers( geometryGroup );
-					initMeshBuffers( geometryGroup, object );
+					initMeshBuffers( geometryGroup, object, scene );
 
 					geometry.__dirtyVertices = true;
 					geometry.__dirtyMorphTargets = true;
