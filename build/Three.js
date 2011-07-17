@@ -11292,12 +11292,6 @@ THREE.WebGLRenderer = function ( parameters ) {
 
 		}
 
-		for (a in attributes)
-		{
-			if (attributes[a] >= 0)
-				console.log(a + " : " + attributes[a]);
-		}
-
 		if ( material.attributes ) {
 
 			for ( a in material.attributes ) {
